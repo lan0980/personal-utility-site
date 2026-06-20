@@ -9,9 +9,18 @@
 
 import { apiClient } from './api';
 import { authManager } from './auth';
-import type { SyncPayload, SyncPushResult, PendingChange, SyncStatus, AboutData } from '../types';
-
-/* ===== Constants ===== */
+import type {
+  SyncPayload,
+  SyncPushResult,
+  PendingChange,
+  SyncStatus,
+  AboutData,
+  TodoItem,
+  LinkItem,
+  Tag,
+  STORAGE_ENTITY_MAP,
+  SYNCED_STORAGE_KEYS,
+} from '../types';
 
 const LAST_SYNC_KEY = 'last-sync-time';
 const PENDING_QUEUE_KEY = 'pending-changes';
@@ -19,7 +28,7 @@ const POLL_INTERVAL = 60000; // 60 seconds
 const PUSH_DEBOUNCE = 2000; // 2 seconds
 
 /** localStorage key → entity name 映射 */
-const KEY_ENTITY_MAP: Record<string, string> = {
+const KEY_ENTITY_MAP: Record<string, PendingChange['entity']> = {
   'calendar-todos': 'todos',
   'link-board-items': 'links',
   'calendar-tags': 'tags',
@@ -28,7 +37,13 @@ const KEY_ENTITY_MAP: Record<string, string> = {
 };
 
 /** 所有需要同步的 localStorage key */
-const SYNCED_KEYS = ['calendar-todos', 'link-board-items', 'calendar-tags', 'link-board-tags', 'about-content'];
+const SYNCED_KEYS: readonly string[] = [
+  'calendar-todos',
+  'link-board-items',
+  'calendar-tags',
+  'link-board-tags',
+  'about-content',
+];
 
 /* ===== Types ===== */
 
@@ -70,7 +85,6 @@ class SyncEngine {
     this.setupPolling();
     this.setupOnlineListener();
 
-    // 初始拉取
     this.pull().catch((err) => console.error('初始同步失败:', err));
   }
 
@@ -108,7 +122,6 @@ class SyncEngine {
   /** 订阅状态变更 */
   onStatusChange(listener: StatusListener): () => void {
     this.listeners.add(listener);
-    // 立即通知一次当前状态
     listener(this.status, this.lastSyncTime);
     return () => {
       this.listeners.delete(listener);
@@ -126,8 +139,7 @@ class SyncEngine {
 
   /** 手动触发同步（拉取 + 推送） */
   async forceSync(): Promise<void> {
-    await this.pull();
-    await this.flushQueue();
+    await Promise.all([this.pull(), this.flushQueue()]);
   }
 
   /** 从服务器全量恢复（清空本地数据后全量拉取） */
@@ -180,20 +192,20 @@ class SyncEngine {
 
   /** 将服务器数据合并到本地 localStorage */
   private mergeLocal(serverData: SyncPayload): void {
-    if (serverData.todos && serverData.todos.length > 0) {
-      this.mergeArrayEntity('calendar-todos', serverData.todos);
+    if (serverData.todos?.length) {
+      this.mergeArrayEntity<TodoItem>('calendar-todos', serverData.todos);
     }
-    if (serverData.links && serverData.links.length > 0) {
-      this.mergeArrayEntity('link-board-items', serverData.links);
+    if (serverData.links?.length) {
+      this.mergeArrayEntity<LinkItem>('link-board-items', serverData.links);
     }
-    if (serverData.tags && serverData.tags.length > 0) {
+    if (serverData.tags?.length) {
       const calendarTags = serverData.tags.filter((t) => t.scope === 'calendar');
       const linkTags = serverData.tags.filter((t) => t.scope === 'links');
-      if (calendarTags.length > 0) {
-        this.mergeArrayEntity('calendar-tags', calendarTags);
+      if (calendarTags.length) {
+        this.mergeArrayEntity<Tag>('calendar-tags', calendarTags);
       }
-      if (linkTags.length > 0) {
-        this.mergeArrayEntity('link-board-tags', linkTags);
+      if (linkTags.length) {
+        this.mergeArrayEntity<Tag>('link-board-tags', linkTags);
       }
     }
     if (serverData.about) {
@@ -210,7 +222,7 @@ class SyncEngine {
     try {
       const raw = localStorage.getItem(key);
       if (raw) {
-        localItems = JSON.parse(raw);
+        localItems = JSON.parse(raw) as T[];
       }
     } catch {
       localItems = [];
@@ -235,7 +247,7 @@ class SyncEngine {
     try {
       const raw = localStorage.getItem('about-content');
       if (raw) {
-        localAbout = JSON.parse(raw);
+        localAbout = JSON.parse(raw) as AboutData;
       }
     } catch {
       localAbout = null;
@@ -256,14 +268,14 @@ class SyncEngine {
     }
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = null;
-      this.flushQueue();
+      this.flushQueue().catch((err) => console.error('推送同步数据失败:', err));
     }, PUSH_DEBOUNCE);
   }
 
   /** 将待推送队列发送到服务器 */
   private async flushQueue(): Promise<void> {
     if (!authManager.isLoggedIn()) return;
-    if (this.pendingQueue.length === 0) return;
+    if (!this.pendingQueue.length) return;
     if (!navigator.onLine) {
       this.setStatus('offline');
       return;
@@ -278,19 +290,18 @@ class SyncEngine {
       const payload: Record<string, unknown> = {};
 
       if (dirtyEntities.has('todos')) {
-        payload.todos = JSON.parse(localStorage.getItem('calendar-todos') || '[]');
+        payload.todos = this.getLocalItems<TodoItem>('calendar-todos');
       }
       if (dirtyEntities.has('links')) {
-        payload.links = JSON.parse(localStorage.getItem('link-board-items') || '[]');
+        payload.links = this.getLocalItems<LinkItem>('link-board-items');
       }
       if (dirtyEntities.has('tags')) {
-        const calendarTags = JSON.parse(localStorage.getItem('calendar-tags') || '[]');
-        const linkTags = JSON.parse(localStorage.getItem('link-board-tags') || '[]');
+        const calendarTags = this.getLocalItems<Tag>('calendar-tags');
+        const linkTags = this.getLocalItems<Tag>('link-board-tags');
         payload.tags = [...calendarTags, ...linkTags];
       }
       if (dirtyEntities.has('about')) {
-        const raw = localStorage.getItem('about-content');
-        payload.about = raw ? JSON.parse(raw) : null;
+        payload.about = this.getLocalItem<AboutData>('about-content');
       }
 
       const result = await apiClient.post<SyncPushResult>('/sync', payload);
@@ -307,6 +318,24 @@ class SyncEngine {
     } catch (err) {
       console.error('推送同步数据失败:', err);
       this.setStatus('error');
+    }
+  }
+
+  private getLocalItems<T>(key: string): T[] {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private getLocalItem<T>(key: string): T | null {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : null;
+    } catch {
+      return null;
     }
   }
 
@@ -369,7 +398,7 @@ class SyncEngine {
     try {
       const raw = localStorage.getItem(PENDING_QUEUE_KEY);
       if (raw) {
-        return JSON.parse(raw);
+        return JSON.parse(raw) as PendingChange[];
       }
     } catch {
       // ignore

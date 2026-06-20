@@ -6,16 +6,16 @@
  * - 保留原始 ID，不替换
  */
 
-import type { AboutData } from '../types';
+import type { AboutData, TodoItem, LinkItem, Tag } from '../types';
 
 /** 读取 localStorage 中的 JSON 数组 */
 function readArray<T>(key: string): T[] | null {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
-    const items = JSON.parse(raw);
+    const items = JSON.parse(raw) as T[];
     if (!Array.isArray(items)) return null;
-    return items as T[];
+    return items;
   } catch {
     return null;
   }
@@ -33,12 +33,46 @@ function writeArray<T>(key: string, items: T[]): void {
 /** 迁移数组中的每个元素（幂等） */
 function migrateArray<T>(
   key: string,
-  migrator: (item: T, index: number) => T,
+  migrator: (item: T) => T,
 ): void {
   const items = readArray<T>(key);
   if (!items) return;
   const migrated = items.map(migrator);
   writeArray(key, migrated);
+}
+
+interface OldTodoItem {
+  id: string;
+  date: string;
+  title: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  completed: boolean;
+  tags: string[];
+  createdAt: string;
+  updatedAt?: string;
+  deleted?: boolean;
+}
+
+interface OldLinkItem {
+  id: string;
+  title: string;
+  url: string;
+  description: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt?: string;
+  deleted?: boolean;
+}
+
+interface OldTag {
+  id: string;
+  name: string;
+  color: string;
+  scope?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  deleted?: boolean;
 }
 
 /**
@@ -49,21 +83,21 @@ export function migrateLocalStorage(): void {
   const now = new Date().toISOString();
 
   // 1. 迁移 TodoItem[] — 补填 updatedAt, deleted
-  migrateArray('calendar-todos', (item: any) => ({
+  migrateArray<OldTodoItem>('calendar-todos', (item) => ({
     ...item,
     updatedAt: item.updatedAt || item.createdAt || now,
     deleted: item.deleted ?? false,
   }));
 
   // 2. 迁移 LinkItem[] — 补填 updatedAt, deleted
-  migrateArray('link-board-items', (item: any) => ({
+  migrateArray<OldLinkItem>('link-board-items', (item) => ({
     ...item,
     updatedAt: item.updatedAt || item.createdAt || now,
     deleted: item.deleted ?? false,
   }));
 
   // 3. 迁移 calendar-tags — 补填 scope, createdAt, updatedAt, deleted
-  migrateArray('calendar-tags', (item: any) => ({
+  migrateArray<OldTag>('calendar-tags', (item) => ({
     ...item,
     scope: item.scope || 'calendar',
     createdAt: item.createdAt || now,
@@ -72,7 +106,7 @@ export function migrateLocalStorage(): void {
   }));
 
   // 4. 迁移 link-board-tags — 补填 scope, createdAt, updatedAt, deleted
-  migrateArray('link-board-tags', (item: any) => ({
+  migrateArray<OldTag>('link-board-tags', (item) => ({
     ...item,
     scope: item.scope || 'links',
     createdAt: item.createdAt || now,

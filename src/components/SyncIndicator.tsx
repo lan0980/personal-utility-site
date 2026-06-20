@@ -14,11 +14,17 @@ interface StatusConfig {
   label: string;
 }
 
+const STATUS_CONFIG: Record<SyncStatus, StatusConfig> = {
+  syncing: { icon: <CloudSyncIcon />, color: 'info.main', label: '同步中...' },
+  synced: { icon: <CloudDoneIcon />, color: 'success.main', label: '已同步' },
+  offline: { icon: <CloudOffIcon />, color: 'warning.main', label: '离线模式' },
+  error: { icon: <ErrorOutlineIcon />, color: 'error.main', label: '同步失败' },
+  idle: { icon: <CloudQueueIcon />, color: 'text.secondary', label: '待同步' },
+};
+
 const SyncIndicator: React.FC = () => {
   const [status, setStatus] = useState<SyncStatus>(syncEngine.getStatus());
-  const [lastSyncTime, setLastSyncTime] = useState<string | null>(
-    syncEngine.getLastSyncTime(),
-  );
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(syncEngine.getLastSyncTime());
 
   useEffect(() => {
     const unsubscribe = syncEngine.onStatusChange((newStatus, newTime) => {
@@ -28,7 +34,7 @@ const SyncIndicator: React.FC = () => {
     return unsubscribe;
   }, []);
 
-  const handleClick = (): void => {
+  const handleClick = () => {
     syncEngine.forceSync();
   };
 
@@ -41,29 +47,15 @@ const SyncIndicator: React.FC = () => {
     }
   };
 
-  const config: Record<SyncStatus, StatusConfig> = {
-    syncing: { icon: <CloudSyncIcon />, color: 'info.main', label: '同步中...' },
-    synced: { icon: <CloudDoneIcon />, color: 'success.main', label: '已同步' },
-    offline: { icon: <CloudOffIcon />, color: 'warning.main', label: '离线模式' },
-    error: { icon: <ErrorOutlineIcon />, color: 'error.main', label: '同步失败' },
-    idle: { icon: <CloudQueueIcon />, color: 'text.secondary', label: '待同步' },
-  };
-
-  const current = config[status];
+  const current = STATUS_CONFIG[status];
 
   return (
     <Tooltip
       title={
         <Box>
-          <Typography variant="caption" display="block">
-            {current.label}
-          </Typography>
-          <Typography variant="caption" display="block">
-            最近同步：{formatTime(lastSyncTime)}
-          </Typography>
-          <Typography variant="caption" display="block">
-            点击立即同步
-          </Typography>
+          <Typography variant="caption" display="block">{current.label}</Typography>
+          <Typography variant="caption" display="block">最近同步：{formatTime(lastSyncTime)}</Typography>
+          <Typography variant="caption" display="block">点击立即同步</Typography>
         </Box>
       }
       arrow
