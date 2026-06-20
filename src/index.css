@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  background-color: #f5f7fa;
+  min-height: 100vh;
+}
+
+/* Smooth transitions */
+.MuiButtonBase-root {
+  transition: all 0.2s ease !important;
+}
+
+/* Markdown content styles */
+.markdown-body h1 {
+  font-size: 2em;
+  margin: 0.67em 0;
+  font-weight: 600;
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  margin: 0.75em 0;
+  font-weight: 600;
+}
+.markdown-body h3 {
+  font-size: 1.25em;
+  margin: 0.83em 0;
+  font-weight: 600;
+}
+.markdown-body p {
+  margin: 1em 0;
+  line-height: 1.7;
+}
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 2em;
+  margin: 1em 0;
+}
+.markdown-body li {
+  margin: 0.25em 0;
+}
+.markdown-body blockquote {
+  border-left: 4px solid #d0d7de;
+  padding: 0 1em;
+  color: #656d76;
+  margin: 1em 0;
+}
+.markdown-body code {
+  background: #eff1f3;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-size: 85%;
+}
+.markdown-body pre {
+  margin: 1em 0;
+  border-radius: 6px;
+  overflow: auto;
+}
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+  font-size: 100%;
+}
+.markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid #d0d7de;
+  padding: 6px 13px;
+}
+.markdown-body th {
+  background: #f6f8fa;
+  font-weight: 600;
+}
+.markdown-body a {
+  color: #0969da;
+  text-decoration: none;
+}
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid #d0d7de;
+  margin: 1.5em 0;
+}
+.markdown-body img {
+  max-width: 100%;
+}
+
+/* Responsive markdown headings for small screens */
+@media (max-width: 600px) {
+  .markdown-body h1 {
+    font-size: 1.5em;
+  }
+  .markdown-body h2 {
+    font-size: 1.3em;
+  }
+  .markdown-body h3 {
+    font-size: 1.15em;
+  }
+  .markdown-body ul,
+  .markdown-body ol {
+    padding-left: 1.5em;
+  }
+  .markdown-body p {
+    line-height: 1.5;
+  }
+  .markdown-body pre {
+    font-size: 0.85em;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
