@@ -222,11 +222,8 @@ const CalendarTodo: React.FC = () => {
     setDetailOpen(true);
   };
 
-  const monthLabel = dayjs(currentMonth + '-01').format('YYYY年 M月');
-  const today = dayjs().format('YYYY-MM-DD');
-
   return (
-    <Box>
+    <Box className="animate-fade-in-up">
       {/* Header */}
       <Box
         sx={{
@@ -284,7 +281,7 @@ const CalendarTodo: React.FC = () => {
       />
 
       {/* Calendar Grid */}
-      <Paper sx={{ p: { xs: 0.5, md: 2 }, borderRadius: 3 }}>
+      <Paper className="glass-card animate-slide-up" sx={{ p: { xs: 0.5, md: 2 }, borderRadius: 3 }}>
         {/* Weekday Headers */}
         <Grid container spacing={0}>
           {WEEKDAYS.map((day) => (
@@ -304,7 +301,6 @@ const CalendarTodo: React.FC = () => {
             </Grid>
           ))}
         </Grid>
-
         {/* Date Cells */}
         <Grid container spacing={0}>
           {calendarDays.map((date, index) => {
@@ -320,6 +316,7 @@ const CalendarTodo: React.FC = () => {
               <Grid item xs={12 / 7} key={date}>
                 <Box
                   onClick={() => setSelectedDate(date)}
+                  className="glass-border hover-lift"
                   sx={{
                     aspectRatio: '1 / 1',
                     minWidth: { xs: 36, sm: 48, md: 56 },
@@ -338,7 +335,8 @@ const CalendarTodo: React.FC = () => {
                     flexDirection: 'column',
                     overflow: 'hidden',
                     '&:hover': {
-                      bgcolor: 'action.hover',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                     },
                   }}
                 >
@@ -422,7 +420,7 @@ const CalendarTodo: React.FC = () => {
       </Paper>
 
       {/* Selected Date Todo List */}
-      <Paper sx={{ mt: 2, p: { xs: 1, sm: 2 }, borderRadius: 3 }}>
+      <Paper className="glass-card" sx={{ mt: 2, p: { xs: 1, sm: 2 }, borderRadius: 3 }}>
         <Box
           sx={{
             display: 'flex',
@@ -454,17 +452,20 @@ const CalendarTodo: React.FC = () => {
           </Typography>
         ) : (
           <List disablePadding>
-            {getTodosForDate(selectedDate).map((todo) => (
+            {getTodosForDate(selectedDate).map((todo, index) => (
               <ListItem
                 key={todo.id}
+                className="glass-card stagger-children"
                 sx={{
                   borderRadius: 2,
                   mb: 0.5,
-                  bgcolor: 'background.default',
                   px: 1,
+                  '&:hover': {
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                  },
                 }}
               >
-                <ListItemIcon sx={{ minWidth: { xs: 44, md: 36 } }}>
                   <IconButton size="small" onClick={() => handleToggleComplete(todo.id)} sx={{ padding: { xs: '12px', md: '3px' } }}>
                     {todo.completed ? (
                       <CheckCircleIcon color="primary" fontSize="small" />
@@ -539,24 +540,24 @@ const CalendarTodo: React.FC = () => {
       {/* FAB for quick add */}
       <Fab
         color="primary"
+        className="stagger-children"
         sx={{
           position: 'fixed',
           bottom: { xs: 72, md: 24 },
           right: 24,
+          '&:hover': {
+            boxShadow: '0 6px 20px rgba(33, 150, 243, 0.4)',
+          },
         }}
-        onClick={() => handleAddTodo(selectedDate)}
-      >
-        <AddIcon />
       </Fab>
 
       {/* Todo Detail Dialog */}
       <Dialog
-        open={detailOpen}
+        className="glass-card"
         onClose={() => setDetailOpen(false)}
         maxWidth="sm"
         fullWidth
       >
-        {detailTodo && (
           <>
             <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <IconButton
@@ -634,8 +635,7 @@ const CalendarTodo: React.FC = () => {
       </Dialog>
 
       {/* Add/Edit Todo Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingTodo ? '编辑待办' : '添加待办'}</DialogTitle>
+      <Dialog className="glass-card" open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogContent>
           <TextField
             fullWidth
@@ -742,8 +742,7 @@ const CalendarTodo: React.FC = () => {
       </Dialog>
 
       {/* Delete Confirm Dialog */}
-      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
-        <DialogTitle>确认删除</DialogTitle>
+      <Dialog className="glass-card" open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
         <DialogContent>
           <Typography>确定要删除这条待办事项吗？</Typography>
         </DialogContent>

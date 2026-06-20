@@ -221,7 +221,7 @@ const LinkBoard: React.FC = () => {
   };
 
   return (
-    <Box>
+    <Box className="animate-fade-in-up">
       {/* Header */}
       <Box
         sx={{
@@ -245,6 +245,7 @@ const LinkBoard: React.FC = () => {
             startIcon={<AddIcon />}
             onClick={handleAddLink}
             size={isMobile ? 'small' : 'medium'}
+            sx={{ backdropFilter: 'blur(10px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
           >
             添加链接
           </Button>
@@ -258,7 +259,14 @@ const LinkBoard: React.FC = () => {
         placeholder="搜索链接..."
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
-        sx={{ mb: { xs: 1, sm: 2 } }}
+        sx={{ 
+          mb: { xs: 1, sm: 2 },
+          '& .MuiOutlinedInput-root': {
+            backdropFilter: 'blur(10px)',
+            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+            borderRadius: 2,
+          },
+        }}
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
@@ -276,7 +284,7 @@ const LinkBoard: React.FC = () => {
       />
 
       {/* Link Cards */}
-      {filteredLinks.length === 0 ? (
+      <Box className="stagger-children">{filteredLinks.length === 0 ? (
         <Box
           sx={{
             textAlign: 'center',
@@ -296,14 +304,14 @@ const LinkBoard: React.FC = () => {
         <Grid container spacing={2}>
           {filteredLinks.map((link) => (
             <Grid item xs={12} sm={6} md={4} key={link.id}>
-              <Card
+              <Card className="glass-card hover-lift"
                 sx={{
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
                   transition: 'all 0.3s ease',
                   '&:hover': {
-                    transform: 'translateY(-2px)',
+                    transform: 'translateY(-4px)',
                     boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
                   },
                   borderLeft: '4px solid',
@@ -360,7 +368,7 @@ const LinkBoard: React.FC = () => {
                       const tag = visibleTags.find((t) => t.id === tagId);
                       if (!tag) return null;
                       return (
-                        <Chip
+                        <Chip className="glass-chip"
                           key={tagId}
                           label={tag.name}
                           size="small"
@@ -369,6 +377,11 @@ const LinkBoard: React.FC = () => {
                             color: tag.color,
                             height: 22,
                             fontSize: '0.7rem',
+                            backdropFilter: 'blur(10px)',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                              transform: 'scale(1.05)',
+                            },
                           }}
                         />
                       );
@@ -424,7 +437,7 @@ const LinkBoard: React.FC = () => {
             </Grid>
           ))}
         </Grid>
-      )}
+      </Box>}
 
       {/* FAB */}
       <Fab
@@ -440,9 +453,17 @@ const LinkBoard: React.FC = () => {
       </Fab>
 
       {/* Add/Edit Link Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth
+        sx={{
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+        }}>
         <DialogTitle>{editingLink ? '编辑链接' : '添加链接'}</DialogTitle>
-        <DialogContent>
+        <DialogContent
+          sx={{
+            backdropFilter: 'blur(10px)',
+            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+          }}>
           <TextField
             fullWidth
             label="标题"
@@ -490,6 +511,12 @@ const LinkBoard: React.FC = () => {
                       borderColor: tag.color,
                       bgcolor: formTags.includes(tag.id) ? tag.color : 'transparent',
                       color: formTags.includes(tag.id) ? '#fff' : tag.color,
+                      backdropFilter: 'blur(10px)',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        transform: 'scale(1.05)',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      },
                     }}
                   />
                 ))}
@@ -513,7 +540,11 @@ const LinkBoard: React.FC = () => {
       {/* Delete Confirm Dialog */}
       <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
         <DialogTitle>确认删除</DialogTitle>
-        <DialogContent>
+        <DialogContent
+          sx={{
+            backdropFilter: 'blur(10px)',
+            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+          }}>
           <Typography>确定要删除这个链接吗？</Typography>
         </DialogContent>
         <DialogActions>

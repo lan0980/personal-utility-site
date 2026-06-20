@@ -29,7 +29,6 @@ import ReportDialog from './ReportDialog';
 import { authManager } from '../services/auth';
 
 const DRAWER_WIDTH = 240;
-/** Mobile AppBar height in pixels */
 const MOBILE_APP_BAR_HEIGHT = 48;
 
 const navItems = [
@@ -55,40 +54,44 @@ const Layout: React.FC = () => {
 
   const drawerContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Logo & User */}
       <Box
         sx={{
-          p: { xs: 2, md: 3 },
+          px: { xs: 2, md: 2.5 },
+          py: { xs: 2, md: 2.5 },
           display: 'flex',
           alignItems: 'center',
           gap: 1.5,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
+          borderBottom: '1px solid rgba(0,0,0,0.06)',
         }}
       >
         <Avatar
           sx={{
-            bgcolor: 'primary.main',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             width: 40,
             height: 40,
             fontSize: '1.1rem',
+            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
           }}
         >
           {user?.username?.charAt(0).toUpperCase() || 'U'}
         </Avatar>
         <Box>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.2, fontSize: '0.95rem' }}>
             实用工具站
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
             {user?.username || '未登录'}
           </Typography>
         </Box>
       </Box>
-      <List sx={{ flex: 1, pt: 1 }}>
+
+      {/* Nav Items */}
+      <List sx={{ flex: 1, px: 1.5, pt: 1 }}>
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
-            <ListItem key={item.path} disablePadding sx={{ px: 1.5, mb: 0.5 }}>
+            <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
                 selected={isActive}
                 onClick={() => {
@@ -97,66 +100,68 @@ const Layout: React.FC = () => {
                 }}
                 sx={{
                   borderRadius: 2,
-                  '&.Mui-selected': {
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    '&:hover': {
-                      bgcolor: 'primary.dark',
-                    },
-                    '& .MuiListItemIcon-root': {
-                      color: 'white',
-                    },
-                  },
+                  py: 1.2,
+                  ...(isActive && {
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important',
+                    color: '#fff',
+                    '& .MuiListItemIcon-root': { color: '#fff' },
+                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                  }),
                 }}
               >
                 <ListItemIcon
-                  sx={{
-                    minWidth: 40,
-                    color: isActive ? 'white' : 'text.secondary',
-                  }}
+                  sx={{ minWidth: 40, color: isActive ? '#fff' : 'text.secondary' }}
                 >
                   {item.icon}
                 </ListItemIcon>
                 <ListItemText
                   primary={item.label}
-                  primaryTypographyProps={{ fontWeight: isActive ? 600 : 400 }}
+                  primaryTypographyProps={{
+                    fontWeight: isActive ? 600 : 400,
+                    fontSize: '0.9rem',
+                  }}
                 />
               </ListItemButton>
             </ListItem>
           );
         })}
       </List>
-      <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+
+      {/* Footer */}
+      <Box
+        sx={{
+          px: 2.5,
+          py: 2,
+          borderTop: '1px solid rgba(0,0,0,0.06)',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
           <SyncIndicator />
           <Typography variant="caption" color="text.secondary">
             {user?.username || '未登录'}
           </Typography>
         </Box>
-        <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
-          © 2026 个人实用工具站
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem' }}>
+          &copy; 2026 个人实用工具站
         </Typography>
-        <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem' }}>
           浙ICP备2026012560号
         </Typography>
-        <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
-          公安备案：待审核通过后添加
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 0.5, mt: 1, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, mt: 1, alignItems: 'center' }}>
           <Link
             component="button"
             variant="caption"
             onClick={() => navigate('/privacy')}
-            sx={{ textDecoration: 'none' }}
+            sx={{ textDecoration: 'none', fontSize: '0.7rem' }}
           >
             隐私政策
           </Link>
-          <Typography variant="caption" color="text.secondary">|</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>|</Typography>
           <Link
             component="button"
             variant="caption"
             onClick={() => setReportOpen(true)}
-            sx={{ textDecoration: 'none' }}
+            sx={{ textDecoration: 'none', fontSize: '0.7rem' }}
           >
             投诉举报
           </Link>
@@ -167,12 +172,18 @@ const Layout: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      {/* Mobile AppBar — provides hamburger menu to open the Drawer */}
+      {/* Mobile AppBar */}
       {isMobile && (
         <AppBar
           position="fixed"
           sx={{
             display: { xs: 'flex', md: 'none' },
+            background: 'rgba(255, 255, 255, 0.7)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.4)',
+            boxShadow: '0 4px 20px rgba(31, 38, 135, 0.06)',
+            color: '#1e293b',
           }}
         >
           <Toolbar sx={{ minHeight: `${MOBILE_APP_BAR_HEIGHT}px !important` }}>
@@ -185,7 +196,7 @@ const Layout: React.FC = () => {
             >
               <MenuIcon />
             </IconButton>
-            <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700, fontSize: '1rem' }}>
               实用工具站
             </Typography>
           </Toolbar>
@@ -202,8 +213,11 @@ const Layout: React.FC = () => {
             '& .MuiDrawer-paper': {
               width: DRAWER_WIDTH,
               boxSizing: 'border-box',
-              borderRight: '1px solid',
-              borderColor: 'divider',
+              backgroundColor: 'rgba(255, 255, 255, 0.55)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              borderRight: '1px solid rgba(255, 255, 255, 0.4)',
+              boxShadow: '4px 0 24px rgba(31, 38, 135, 0.06)',
             },
           }}
         >
@@ -211,7 +225,7 @@ const Layout: React.FC = () => {
         </Drawer>
       )}
 
-      {/* Mobile Drawer (temporary) */}
+      {/* Mobile Drawer */}
       {isMobile && (
         <Drawer
           variant="temporary"
@@ -221,6 +235,9 @@ const Layout: React.FC = () => {
           sx={{
             '& .MuiDrawer-paper': {
               width: DRAWER_WIDTH,
+              backgroundColor: 'rgba(255, 255, 255, 0.8)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
             },
           }}
         >
@@ -235,7 +252,7 @@ const Layout: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           minHeight: '100vh',
-          pb: isMobile ? '56px' : 0,
+          pb: isMobile ? '64px' : 0,
         }}
       >
         <Box
@@ -243,11 +260,11 @@ const Layout: React.FC = () => {
           sx={{
             flex: 1,
             p: { xs: 2, md: 3 },
-            // Compensate for the fixed mobile AppBar height
             pt: { xs: `${MOBILE_APP_BAR_HEIGHT + 8}px`, md: 3 },
             maxWidth: 1200,
             mx: 'auto',
             width: '100%',
+            animation: 'fadeIn 0.3s ease',
           }}
         >
           <Outlet />
@@ -267,11 +284,13 @@ const Layout: React.FC = () => {
             left: 0,
             right: 0,
             zIndex: theme.zIndex.drawer,
-            borderTop: '1px solid',
-            borderColor: 'divider',
-            bgcolor: 'background.paper',
+            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.4)',
+            height: 64,
             '& .Mui-selected': {
-              color: 'primary.main',
+              color: '#667eea',
             },
           }}
         >
@@ -285,7 +304,6 @@ const Layout: React.FC = () => {
         </BottomNavigation>
       )}
 
-      {/* Report Dialog */}
       <ReportDialog open={reportOpen} onClose={() => setReportOpen(false)} />
     </Box>
   );
