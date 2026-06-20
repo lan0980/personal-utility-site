@@ -1,0 +1,53 @@
+sequenceDiagram
+    participant Timer as 定时器 60s
+    participant Sync as SyncEngine
+    participant Api as ApiClient
+    participant Server as Fastify Server
+    participant DB as Database (SQLite)
+    participant LS as localStorage
+
+    Note over Sync: 触发场景：App启动 / 定时器 / 网络恢复
+    Timer->>Sync: pull()
+    Sync->>Sync: setStatus('syncing')
+    Sync->>LS: getItem('last-sync-time')
+    LS-->>Sync: since (ISO8601 | null)
+
+    alt 首次同步 (since=null)
+        Sync->>Api: GET /api/sync (无 since 参数)
+    else 增量同步
+        Sync->>Api: GET /api/sync?since={since}
+    end
+
+    Api->>Server: HTTP GET /api/sync?since=...
+    Server->>Server: authMiddleware 验证 JWT
+    Server->>DB: getSyncData(userId, since)
+
+    alt since=null (全量拉取)
+        DB->>DB: SELECT * FROM todos WHERE user_id=? AND deleted=0
+        DB->>DB: SELECT * FROM links WHERE user_id=? AND deleted=0
+        DB->>DB: SELECT * FROM tags WHERE user_id=? AND deleted=0
+        DB->>DB: SELECT * FROM about WHERE user_id=?
+    else 增量拉取
+        DB->>DB: SELECT * FROM todos WHERE user_id=? AND updated_at>?
+        DB->>DB: SELECT * FROM links WHERE user_id=? AND updated_at>?
+        DB->>DB: SELECT * FROM tags WHERE user_id=? AND updated_at>?
+        DB->>DB: SELECT * FROM about WHERE user_id=? AND updated_at>?
+    end
+
+    DB-->>Server: 各表变更数据
+    Server-->>Api: 200 {code:0, data: {todos, links, tags, about, serverTime}}
+
+    Api-->>Sync: SyncPayload
+    Sync->>Sync: mergeLocal(serverData)
+
+    loop 每条服务器记录
+        Sync->>LS: 读取本地对应记录
+        alt 服务器 updatedAt > 本地 updatedAt 或 本地不存在
+            Sync->>LS: 写入服务器版本
+        else 本地 updatedAt >= 服务器 updatedAt
+            Sync->>Sync: 保留本地版本（不覆盖）
+        end
+    end
+
+    Sync->>LS: setItem('last-sync-time', serverTime)
+    Sync->>Sync: setStatus('synced')

@@ -1,0 +1,44 @@
+sequenceDiagram
+    participant UI as Page Component
+    participant Hook as useSyncedStorage
+    participant Sync as SyncEngine
+    participant Api as ApiClient
+    participant Server as Fastify Server
+    participant DB as Database (SQLite)
+    participant LS as localStorage
+
+    UI->>Hook: setValue(newValue)
+    Hook->>LS: setItem(key, JSON.stringify(newValue))
+    Hook->>Sync: enqueueChange({type:'upsert', entity:'todos', data:item})
+
+    Sync->>Sync: 加入 pendingQueue
+    Sync->>LS: setItem('pending-changes', JSON.stringify(queue))
+    Sync->>Sync: 启动防抖定时器 (2s)
+
+    Note over Sync: 2s 后防抖触发
+    Sync->>Sync: setStatus('syncing')
+    Sync->>Sync: 收集 pendingQueue
+
+    Sync->>Api: POST /api/sync {todos:[...], link:[...], tags:[...], about:{...}}
+    Api->>Server: HTTP POST /api/sync
+    Server->>Server: authMiddleware 验证 JWT
+
+    loop 每个实体的每条记录
+        Server->>DB: SELECT updated_at FROM {table} WHERE id=? AND user_id=?
+        alt 记录不存在
+            Server->>DB: INSERT INTO {table} VALUES(...)
+        else 记录存在 且 服务器 updatedAt < 请求 updatedAt
+            Server->>DB: UPDATE {table} SET ... WHERE id=? AND user_id=?
+        else 记录存在 且 服务器 updatedAt >= 请求 updatedAt
+            Server->>Server: 跳过（LWW，服务器版本更新）
+        end
+    end
+
+    Server->>DB: 获取最新 serverTime
+    Server-->>Api: 200 {code:0, data: {serverTime, conflicts: 0}}
+
+    Api-->>Sync: PushResult
+    Sync->>LS: removeItem('pending-changes')
+    Sync->>LS: setItem('last-sync-time', serverTime)
+    Sync->>Sync: clear pendingQueue
+    Sync->>Sync: setStatus('synced')

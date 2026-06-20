@@ -1,0 +1,185 @@
+classDiagram
+    direction TB
+
+    %% ===== 前端类型 =====
+    class TodoItem {
+        +string id
+        +string date
+        +string title
+        +string description
+        +Priority priority
+        +boolean completed
+        +string[] tags
+        +string createdAt
+        +string updatedAt
+        +boolean deleted
+    }
+
+    class LinkItem {
+        +string id
+        +string title
+        +string url
+        +string description
+        +string[] tags
+        +string createdAt
+        +string updatedAt
+        +boolean deleted
+    }
+
+    class Tag {
+        +string id
+        +string name
+        +string color
+        +string scope
+        +string createdAt
+        +string updatedAt
+        +boolean deleted
+    }
+
+    class AboutData {
+        +string content
+        +string updatedAt
+    }
+
+    class SyncPayload {
+        +TodoItem[] todos
+        +LinkItem[] links
+        +Tag[] tags
+        +AboutData about
+        +string serverTime
+    }
+
+    class PendingChange {
+        +string type
+        +string entity
+        +string id
+        +object data
+        +string updatedAt
+    }
+
+    class AuthUser {
+        +string id
+        +string username
+    }
+
+    class LoginRequest {
+        +string username
+        +string password
+    }
+
+    class RegisterRequest {
+        +string username
+        +string password
+    }
+
+    class AuthResponse {
+        +string token
+        +AuthUser user
+    }
+
+    %% ===== 前端服务 =====
+    class ApiClient {
+        -string baseUrl
+        +get~T~(path, params) Promise~T~
+        +post~T~(path, body) Promise~T~
+        +put~T~(path, body) Promise~T~
+        -getHeaders() Record~string,string~
+        -handleError(response) Error
+    }
+
+    class AuthManager {
+        -string TOKEN_KEY
+        -string USER_KEY
+        +login(req: LoginRequest) Promise~AuthUser~
+        +register(req: RegisterRequest) Promise~AuthUser~
+        +logout() void
+        +getToken() string|null
+        +getUser() AuthUser|null
+        +isLoggedIn() boolean
+        +onTokenExpired(callback) void
+    }
+
+    class SyncEngine {
+        -ApiClient apiClient
+        -SyncStatus status
+        -NodeJS.Timeout pollTimer
+        -number debounceTimer
+        -PendingChange[] pendingQueue
+        +start() void
+        +stop() void
+        +pull() Promise~SyncPayload~
+        +push(changes: PendingChange[]) Promise~void~
+        +enqueueChange(change: PendingChange) void
+        +getStatus() SyncStatus
+        +forceSync() Promise~void~
+        +fullRecover() Promise~void~
+        -debouncedPush() void
+        -mergeLocal(serverData: SyncPayload) void
+        -flushQueue() Promise~void~
+        -setupOnlineListener() void
+        -setupPolling() void
+    }
+
+    class useSyncedStorage~T~ {
+        +T value
+        +setValue(val: T|Function) void
+        -SyncEngine syncEngine
+        -string storageKey
+    }
+
+    %% ===== 后端 =====
+    class FastifyApp {
+        +listen(port: number) Promise~void~
+        +register(plugin, opts) void
+    }
+
+    class Database {
+        -BetterSqlite3 db
+        +init() void
+        +getUserByUsername(username) UserRow|null
+        +getUserById(id) UserRow|null
+        +createUser(user) void
+        +getSyncData(userId, since) SyncPayload
+        +upsertTodos(userId, todos) void
+        +upsertLinks(userId, links) void
+        +upsertTags(userId, tags) void
+        +getAbout(userId) AboutRow|null
+        +setAbout(userId, content, updatedAt) void
+    }
+
+    class AuthMiddleware {
+        +verifyToken(request, reply) void
+    }
+
+    class AuthRoutes {
+        +POST /api/auth/register(request, reply) AuthResponse
+        +POST /api/auth/login(request, reply) AuthResponse
+    }
+
+    class SyncRoutes {
+        +GET /api/sync(request, reply) SyncPayload
+        +POST /api/sync(request, reply) SyncResult
+    }
+
+    class AboutRoutes {
+        +GET /api/about(request, reply) AboutData
+        +PUT /api/about(request, reply) AboutData
+    }
+
+    %% ===== 关系 =====
+    useSyncedStorage --> SyncEngine : uses
+    SyncEngine --> ApiClient : uses
+    SyncEngine --> AuthManager : checks auth
+    ApiClient --> AuthManager : gets token
+    SyncEngine ..> SyncPayload : produces/consumes
+    SyncEngine ..> PendingChange : manages queue
+
+    AuthRoutes --> Database : reads/writes users
+    SyncRoutes --> Database : reads/writes todos,links,tags
+    SyncRoutes --> AuthMiddleware : protected by
+    AboutRoutes --> Database : reads/writes about
+    AboutRoutes --> AuthMiddleware : protected by
+    FastifyApp --> AuthRoutes : registers
+    FastifyApp --> SyncRoutes : registers
+    FastifyApp --> AboutRoutes : registers
+    FastifyApp --> AuthMiddleware : registers

@@ -1,0 +1,37 @@
+sequenceDiagram
+    actor User
+    participant Login as Login.tsx
+    participant Auth as AuthManager
+    participant Api as ApiClient
+    participant Server as Fastify Server
+    participant DB as Database (SQLite)
+
+    User->>Login: 输入用户名密码，点击登录
+    Login->>Auth: login({username, password})
+    Auth->>Api: POST /api/auth/login {username, password}
+    Api->>Server: HTTP POST /api/auth/login
+
+    Server->>DB: getUserByUsername(username)
+    DB-->>Server: UserRow | null
+
+    alt 用户不存在
+        Server-->>Api: 401 {code: 1, message: "用户名或密码错误"}
+        Api-->>Auth: throw Error
+        Auth-->>Login: 登录失败
+        Login-->>User: 显示错误提示
+    else 用户存在
+        Server->>Server: bcrypt.compare(password, hash)
+        alt 密码不匹配
+            Server-->>Api: 401 {code: 1, message: "用户名或密码错误"}
+            Api-->>Auth: throw Error
+            Auth-->>Login: 登录失败
+        else 密码匹配
+            Server->>Server: jwt.sign({userId: user.id}, SECRET, {expiresIn: '7d'})
+            Server-->>Api: 200 {code: 0, data: {token, user: {id, username}}}
+            Api-->>Auth: {token, user}
+            Auth->>Auth: localStorage.setItem('auth-token', token)
+            Auth->>Auth: localStorage.setItem('auth-user', JSON.stringify(user))
+            Auth-->>Login: 登录成功
+            Login->>Login: navigate('/')
+        end
+    end
