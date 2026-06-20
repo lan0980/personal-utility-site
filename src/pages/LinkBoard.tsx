@@ -30,21 +30,37 @@ import SearchIcon from '@mui/icons-material/Search';
 import LinkIcon from '@mui/icons-material/Link';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import WarningIcon from '@mui/icons-material/Warning';
-import { LinkItem, Tag } from '../types';
+import { LinkItem, Tag, getVisibleTags } from '../types';
 import { useSyncedStorage } from '../store/useSyncedStorage';
 import TagFilter from '../components/TagFilter';
 import TagManager from '../components/TagManager';
+import { generateId } from '../utils/date';
+
+interface LinkFormState {
+  title: string;
+  url: string;
+  description: string;
+  tags: string[];
+}
+
+const createEmptyForm = (): LinkFormState => ({
+  title: '',
+  url: '',
+  description: '',
+  tags: [],
+});
 
 /** Favicon with fallback to LinkIcon on error */
 const Favicon: React.FC<{ url: string }> = ({ url }) => {
   const [imgError, setImgError] = useState(false);
 
-  let domain = '';
-  try {
-    domain = new URL(url).hostname;
-  } catch {
-    domain = '';
-  }
+  const domain = useMemo(() => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return '';
+    }
+  }, [url]);
 
   if (imgError || !domain) {
     return <LinkIcon sx={{ width: 16, height: 16, mr: 1, flexShrink: 0, color: 'text.disabled' }} />;
@@ -55,14 +71,7 @@ const Favicon: React.FC<{ url: string }> = ({ url }) => {
       src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
       alt=""
       onError={() => setImgError(true)}
-      style={{
-        width: 16,
-        height: 16,
-        borderRadius: 2,
-        marginRight: 8,
-        flexShrink: 0,
-        verticalAlign: 'middle',
-      }}
+      style={{ width: 16, height: 16, borderRadius: 2, marginRight: 8, flexShrink: 0, verticalAlign: 'middle' }}
     />
   );
 };
@@ -72,42 +81,35 @@ const LinkBoard: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [links, setLinks] = useSyncedStorage<LinkItem[]>('link-board-items', []);
   const [tags, setTags] = useSyncedStorage<Tag[]>('link-board-tags', []);
-  const visibleTags = useMemo(() => tags.filter((t) => !t.deleted), [tags]);
+  const visibleTags = useMemo(() => getVisibleTags(tags), [tags]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkItem | null>(null);
-
-  // Form state
-  const [formTitle, setFormTitle] = useState('');
-  const [formUrl, setFormUrl] = useState('');
-  const [formDesc, setFormDesc] = useState('');
-  const [formTags, setFormTags] = useState<string[]>([]);
+  const [form, setForm] = useState<LinkFormState>(createEmptyForm());
 
   // Delete confirm
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
-  // Warning dialog (shown before adding new links)
+  // Warning dialog
   const [warningDialogOpen, setWarningDialogOpen] = useState(false);
 
   // Copy link feedback state
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  /** 筛选链接（过滤已删除） */
+  /** 筛选链接 */
   const filteredLinks = useMemo(() => {
     let result = links.filter((l) => !l.deleted);
 
-    // 按标签筛选
     if (selectedTagIds.length > 0) {
       result = result.filter((link) =>
         selectedTagIds.some((tagId) => link.tags.includes(tagId)),
       );
     }
 
-    // 按搜索关键词筛选
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       result = result.filter(
@@ -118,14 +120,13 @@ const LinkBoard: React.FC = () => {
       );
     }
 
-    // 按创建时间倒序
     return [...result].sort(
       (a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf(),
     );
   }, [links, selectedTagIds, searchQuery]);
 
-  /** 点击"添加链接"按钮 — 先弹出警告确认 */
-  const handleAddLink = () => {
+  /** 打开添加链接表单 */
+  const openAddDialog = () => {
     setWarningDialogOpen(true);
   };
 
@@ -133,10 +134,7 @@ const LinkBoard: React.FC = () => {
   const handleAgreeWarning = () => {
     setWarningDialogOpen(false);
     setEditingLink(null);
-    setFormTitle('');
-    setFormUrl('');
-    setFormDesc('');
-    setFormTags([]);
+    setForm(createEmptyForm());
     setDialogOpen(true);
   };
 
@@ -148,25 +146,25 @@ const LinkBoard: React.FC = () => {
         setCopiedId(link.id);
         setTimeout(() => setCopiedId(null), 3000);
       })
-      .catch(() => {
-        // Silently ignore clipboard errors
-      });
+      .catch(() => {});
   };
 
   /** 打开编辑链接对话框 */
-  const handleEditLink = (link: LinkItem) => {
+  const openEditDialog = (link: LinkItem) => {
     setEditingLink(link);
-    setFormTitle(link.title);
-    setFormUrl(link.url);
-    setFormDesc(link.description);
-    setFormTags(link.tags);
+    setForm({
+      title: link.title,
+      url: link.url,
+      description: link.description,
+      tags: link.tags,
+    });
     setDialogOpen(true);
   };
 
   /** 保存链接 */
   const handleSaveLink = () => {
-    const trimmedTitle = formTitle.trim();
-    const trimmedUrl = formUrl.trim();
+    const trimmedTitle = form.title.trim();
+    const trimmedUrl = form.url.trim();
     if (!trimmedTitle || !trimmedUrl) return;
 
     const now = dayjs().toISOString();
@@ -175,24 +173,17 @@ const LinkBoard: React.FC = () => {
       setLinks((prev) =>
         prev.map((l) =>
           l.id === editingLink.id
-            ? {
-                ...l,
-                title: trimmedTitle,
-                url: trimmedUrl,
-                description: formDesc.trim(),
-                tags: formTags,
-                updatedAt: now,
-              }
+            ? { ...l, title: trimmedTitle, url: trimmedUrl, description: form.description.trim(), tags: form.tags, updatedAt: now }
             : l,
         ),
       );
     } else {
       const newLink: LinkItem = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         title: trimmedTitle,
         url: trimmedUrl,
-        description: formDesc.trim(),
-        tags: formTags,
+        description: form.description.trim(),
+        tags: form.tags,
         createdAt: now,
         updatedAt: now,
         deleted: false,
@@ -203,10 +194,11 @@ const LinkBoard: React.FC = () => {
   };
 
   /** 删除链接（软删除） */
-  const handleDeleteLink = (linkId: string) => {
+  const handleDeleteLink = () => {
+    if (!deleteTargetId) return;
     setLinks((prev) =>
       prev.map((l) =>
-        l.id === linkId ? { ...l, deleted: true, updatedAt: dayjs().toISOString() } : l,
+        l.id === deleteTargetId ? { ...l, deleted: true, updatedAt: dayjs().toISOString() } : l,
       ),
     );
     setDeleteConfirmOpen(false);
@@ -215,37 +207,23 @@ const LinkBoard: React.FC = () => {
 
   /** 切换标签选择 */
   const handleToggleFormTag = (tagId: string) => {
-    setFormTags((prev) =>
-      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId],
-    );
+    setForm((prev) => ({
+      ...prev,
+      tags: prev.tags.includes(tagId) ? prev.tags.filter((id) => id !== tagId) : [...prev.tags, tagId],
+    }));
   };
 
   return (
     <Box>
       {/* Header */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          mb: { xs: 1.5, sm: 3 },
-          flexWrap: 'wrap',
-          gap: 1,
-        }}
-      >
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1.5, sm: 3 }, flexWrap: 'wrap', gap: 1 }}>
         <Typography variant="h5" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
           <LinkIcon color="secondary" />
           链接板
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <TagManager tags={tags} onTagsChange={setTags} scope="links" />
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={<AddIcon />}
-            onClick={handleAddLink}
-            size={isMobile ? 'small' : 'medium'}
-          >
+          <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={openAddDialog} size={isMobile ? 'small' : 'medium'}>
             添加链接
           </Button>
         </Box>
@@ -259,38 +237,18 @@ const LinkBoard: React.FC = () => {
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         sx={{ mb: { xs: 1, sm: 2 } }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon fontSize="small" />
-            </InputAdornment>
-          ),
-        }}
+        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
       />
 
       {/* Tag Filter */}
-      <TagFilter
-        tags={visibleTags}
-        selectedTagIds={selectedTagIds}
-        onSelectionChange={setSelectedTagIds}
-      />
+      <TagFilter tags={visibleTags} selectedTagIds={selectedTagIds} onSelectionChange={setSelectedTagIds} />
 
       {/* Link Cards */}
       {filteredLinks.length === 0 ? (
-        <Box
-          sx={{
-            textAlign: 'center',
-            py: { xs: 4, sm: 8 },
-            color: 'text.secondary',
-          }}
-        >
+        <Box sx={{ textAlign: 'center', py: { xs: 4, sm: 8 }, color: 'text.secondary' }}>
           <LinkIcon sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
-          <Typography variant="h6" color="text.secondary">
-            暂无链接
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            点击右下角的按钮添加你的第一个链接
-          </Typography>
+          <Typography variant="h6" color="text.secondary">暂无链接</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>点击右下角的按钮添加你的第一个链接</Typography>
         </Box>
       ) : (
         <Grid container spacing={2}>
@@ -302,10 +260,7 @@ const LinkBoard: React.FC = () => {
                   display: 'flex',
                   flexDirection: 'column',
                   transition: 'all 0.3s ease',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                  },
+                  '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' },
                   borderLeft: '4px solid',
                   borderLeftColor: 'secondary.main',
                 }}
@@ -313,45 +268,20 @@ const LinkBoard: React.FC = () => {
                 <CardContent sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                     <Favicon url={link.url} />
-                    <Typography
-                      variant="subtitle1"
-                      sx={{
-                        fontWeight: 600,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {link.title}
                     </Typography>
                   </Box>
                   <Typography
                     variant="body2"
                     color="secondary.main"
-                    sx={{
-                      mb: 1,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      cursor: 'pointer',
-                      '&:hover': { textDecoration: 'underline' },
-                    }}
+                    sx={{ mb: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
                     onClick={() => window.open(link.url, '_blank', 'noopener,noreferrer')}
                   >
                     {link.url}
                   </Typography>
                   {link.description && (
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{
-                        mb: 1,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                    >
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                       {link.description}
                     </Typography>
                   )}
@@ -360,17 +290,7 @@ const LinkBoard: React.FC = () => {
                       const tag = visibleTags.find((t) => t.id === tagId);
                       if (!tag) return null;
                       return (
-                        <Chip
-                          key={tagId}
-                          label={tag.name}
-                          size="small"
-                          sx={{
-                            bgcolor: tag.color + '22',
-                            color: tag.color,
-                            height: 22,
-                            fontSize: '0.7rem',
-                          }}
-                        />
+                        <Chip key={tagId} label={tag.name} size="small" sx={{ bgcolor: tag.color + '22', color: tag.color, height: 22, fontSize: '0.7rem' }} />
                       );
                     })}
                   </Stack>
@@ -380,42 +300,22 @@ const LinkBoard: React.FC = () => {
                     {dayjs(link.createdAt).format('YYYY-MM-DD')}
                   </Typography>
                   <Tooltip title={copiedId === link.id ? '已复制！' : '复制链接'} arrow>
-                    <IconButton
-                      size="small"
-                      color={copiedId === link.id ? 'success' : 'default'}
-                      onClick={() => handleCopyLink(link)}
-                      sx={{ padding: { xs: '12px', md: '3px' } }}
-                    >
+                    <IconButton size="small" color={copiedId === link.id ? 'success' : 'default'} onClick={() => handleCopyLink(link)} sx={{ padding: { xs: '12px', md: '3px' } }}>
                       <ContentCopyIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="打开链接" arrow>
-                    <IconButton
-                      size="small"
-                      color="secondary"
-                      onClick={() =>
-                        window.open(link.url, '_blank', 'noopener,noreferrer')
-                      }
-                      sx={{ padding: { xs: '12px', md: '3px' } }}
-                    >
+                    <IconButton size="small" color="secondary" onClick={() => window.open(link.url, '_blank', 'noopener,noreferrer')} sx={{ padding: { xs: '12px', md: '3px' } }}>
                       <OpenInNewIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="编辑" arrow>
-                    <IconButton size="small" onClick={() => handleEditLink(link)} sx={{ padding: { xs: '12px', md: '3px' } }}>
+                    <IconButton size="small" onClick={() => openEditDialog(link)} sx={{ padding: { xs: '12px', md: '3px' } }}>
                       <EditIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="删除" arrow>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => {
-                        setDeleteTargetId(link.id);
-                        setDeleteConfirmOpen(true);
-                      }}
-                      sx={{ padding: { xs: '12px', md: '3px' } }}
-                    >
+                    <IconButton size="small" color="error" onClick={() => { setDeleteTargetId(link.id); setDeleteConfirmOpen(true); }} sx={{ padding: { xs: '12px', md: '3px' } }}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -427,15 +327,7 @@ const LinkBoard: React.FC = () => {
       )}
 
       {/* FAB */}
-      <Fab
-        color="secondary"
-        sx={{
-          position: 'fixed',
-          bottom: { xs: 72, md: 24 },
-          right: 24,
-        }}
-        onClick={handleAddLink}
-      >
+      <Fab color="secondary" sx={{ position: 'fixed', bottom: { xs: 72, md: 24 }, right: 24 }} onClick={openAddDialog}>
         <AddIcon />
       </Fab>
 
@@ -443,55 +335,15 @@ const LinkBoard: React.FC = () => {
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{editingLink ? '编辑链接' : '添加链接'}</DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            label="标题"
-            value={formTitle}
-            onChange={(e) => setFormTitle(e.target.value)}
-            sx={{ mt: 1, mb: 2 }}
-            required
-            placeholder="例如：项目文档"
-          />
-          <TextField
-            fullWidth
-            label="URL"
-            value={formUrl}
-            onChange={(e) => setFormUrl(e.target.value)}
-            sx={{ mb: 2 }}
-            required
-            placeholder="https://..."
-          />
-          <TextField
-            fullWidth
-            label="描述"
-            value={formDesc}
-            onChange={(e) => setFormDesc(e.target.value)}
-            multiline
-            rows={3}
-            sx={{ mb: 2 }}
-            placeholder="链接的简要描述..."
-          />
-
-          {/* Tags selection */}
+          <TextField fullWidth label="标题" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} sx={{ mt: 1, mb: 2 }} required placeholder="例如：项目文档" />
+          <TextField fullWidth label="URL" value={form.url} onChange={(e) => setForm((prev) => ({ ...prev, url: e.target.value }))} sx={{ mb: 2 }} required placeholder="https://..." />
+          <TextField fullWidth label="描述" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} multiline rows={3} sx={{ mb: 2 }} placeholder="链接的简要描述..." />
           {visibleTags.length > 0 && (
             <Box sx={{ mb: 1 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                标签
-              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>标签</Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                 {visibleTags.map((tag) => (
-                  <Chip
-                    key={tag.id}
-                    label={tag.name}
-                    size="small"
-                    variant={formTags.includes(tag.id) ? 'filled' : 'outlined'}
-                    onClick={() => handleToggleFormTag(tag.id)}
-                    sx={{
-                      borderColor: tag.color,
-                      bgcolor: formTags.includes(tag.id) ? tag.color : 'transparent',
-                      color: formTags.includes(tag.id) ? '#fff' : tag.color,
-                    }}
-                  />
+                  <Chip key={tag.id} label={tag.name} size="small" variant={form.tags.includes(tag.id) ? 'filled' : 'outlined'} onClick={() => handleToggleFormTag(tag.id)} sx={{ borderColor: tag.color, bgcolor: form.tags.includes(tag.id) ? tag.color : 'transparent', color: form.tags.includes(tag.id) ? '#fff' : tag.color }} />
                 ))}
               </Box>
             </Box>
@@ -499,14 +351,7 @@ const LinkBoard: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)}>取消</Button>
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleSaveLink}
-            disabled={!formTitle.trim() || !formUrl.trim()}
-          >
-            {editingLink ? '更新' : '添加'}
-          </Button>
+          <Button variant="contained" color="secondary" onClick={handleSaveLink} disabled={!form.title.trim() || !form.url.trim()}>{editingLink ? '更新' : '添加'}</Button>
         </DialogActions>
       </Dialog>
 
@@ -518,19 +363,11 @@ const LinkBoard: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteConfirmOpen(false)}>取消</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() => {
-              if (deleteTargetId) handleDeleteLink(deleteTargetId);
-            }}
-          >
-            删除
-          </Button>
+          <Button color="error" variant="contained" onClick={handleDeleteLink}>删除</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Warning Dialog — shown before adding new links */}
+      {/* Warning Dialog */}
       <Dialog open={warningDialogOpen} onClose={() => setWarningDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ bgcolor: 'warning.light', color: 'warning.dark', display: 'flex', alignItems: 'center', gap: 1 }}>
           <WarningIcon sx={{ color: 'warning.main' }} />
@@ -545,12 +382,8 @@ const LinkBoard: React.FC = () => {
           </Typography>
         </DialogContent>
         <DialogActions sx={{ bgcolor: 'background.paper', px: 3, pb: 2 }}>
-          <Button onClick={() => setWarningDialogOpen(false)}>
-            取消
-          </Button>
-          <Button variant="contained" color="primary" onClick={handleAgreeWarning}>
-            同意
-          </Button>
+          <Button onClick={() => setWarningDialogOpen(false)}>取消</Button>
+          <Button variant="contained" color="primary" onClick={handleAgreeWarning}>同意</Button>
         </DialogActions>
       </Dialog>
     </Box>

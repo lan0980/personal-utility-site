@@ -34,7 +34,7 @@ export interface Tag {
   id: string;
   name: string;
   color: string;
-  scope: string; // 'calendar' | 'links'
+  scope: 'calendar' | 'links';
   createdAt: string;
   updatedAt: string;
   deleted: boolean;
@@ -71,8 +71,8 @@ export interface SyncPushResult {
 /** 待推送的变更 */
 export interface PendingChange {
   type: 'upsert' | 'delete';
-  entity: string; // 'todos' | 'links' | 'tags' | 'about'
-  id: string; // localStorage key
+  entity: 'todos' | 'links' | 'tags' | 'about';
+  id: string;
   data: unknown;
   updatedAt: string;
 }
@@ -116,7 +116,7 @@ export const PRIORITY_CONFIG: Record<
 };
 
 /** 预置标签颜色 */
-export const TAG_COLORS: string[] = [
+export const TAG_COLORS: readonly string[] = [
   '#ef4444',
   '#f97316',
   '#f59e0b',
@@ -138,7 +138,7 @@ export interface LoginLog {
   username: string;
   ip: string | null;
   userAgent: string | null;
-  action: string;
+  action: 'login' | 'login_failed' | 'register' | string;
   success: boolean;
   createdAt: string;
   device: string | null;
@@ -201,4 +201,50 @@ export interface Report {
 /** 举报列表响应 */
 export interface ReportListResponse {
   items: Report[];
+}
+
+/* ===== API Response type ===== */
+
+/** 通用 API 响应格式 */
+export interface ApiResponse<T> {
+  code: number;
+  data: T;
+  message: string;
+}
+
+/* ===== Storage Keys ===== */
+
+/** localStorage key → entity name 映射 */
+export const STORAGE_ENTITY_MAP: Record<string, PendingChange['entity']> = {
+  'calendar-todos': 'todos',
+  'link-board-items': 'links',
+  'calendar-tags': 'tags',
+  'link-board-tags': 'tags',
+  'about-content': 'about',
+} as const;
+
+/** 所有需要同步的 localStorage key */
+export const SYNCED_STORAGE_KEYS: readonly string[] = [
+  'calendar-todos',
+  'link-board-items',
+  'calendar-tags',
+  'link-board-tags',
+  'about-content',
+];
+
+/* ===== Misc ===== */
+
+/** 获取不包含 deleted 的标签 */
+export function getVisibleTags(tags: Tag[]): Tag[] {
+  return tags.filter((t) => !t.deleted);
+}
+
+/** 格式化时间显示 */
+export function formatDateTime(isoString: string | null): string {
+  if (!isoString) return '从未同步';
+  try {
+    return new Date(isoString).toLocaleString('zh-CN');
+  } catch {
+    return isoString;
+  }
 }

@@ -13,22 +13,24 @@ import type {
   ReportRequest,
   ReportSubmitResponse,
   ReportListResponse,
+  ApiResponse,
 } from '../types';
 
 const API_BASE_URL = '/api';
+const TOKEN_KEY = 'auth-token';
 
 /* ===== Conversion utilities ===== */
 
 /** 递归将对象 key 从 snake_case 转为 camelCase */
-function toCamelCase(obj: unknown): unknown {
-  if (obj === null || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(toCamelCase);
+function toCamelCase<T>(obj: unknown): T {
+  if (obj === null || typeof obj !== 'object') return obj as T;
+  if (Array.isArray(obj)) return obj.map(toCamelCase) as T;
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
     const camelKey = key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
     result[camelKey] = toCamelCase(value);
   }
-  return result;
+  return result as T;
 }
 
 /** 递归将对象 key 从 camelCase 转为 snake_case */
@@ -55,12 +57,17 @@ export class ApiError extends Error {
   }
 }
 
-/* ===== API Response type ===== */
+/* ===== Auth token management ===== */
 
-interface ApiResponse<T> {
-  code: number;
-  data: T;
-  message: string;
+/** 获取 JWT 令牌 */
+function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+/** 清除认证信息 */
+function clearAuth(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('auth-user');
 }
 
 /* ===== API Client ===== */
@@ -72,17 +79,12 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  /** 从 localStorage 获取 JWT 令牌 */
-  private getToken(): string | null {
-    return localStorage.getItem('auth-token');
-  }
-
   /** 构建请求头，自动附加 JWT */
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    const token = this.getToken();
+    const token = getToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
@@ -108,9 +110,9 @@ class ApiClient {
       body: body !== undefined ? JSON.stringify(toSnakeCase(body)) : undefined,
     });
 
-    let result: ApiResponse<T>;
+    let result: ApiResponse<unknown>;
     try {
-      result = await response.json();
+      result = await response.json() as ApiResponse<unknown>;
     } catch {
       throw new ApiError(3, '服务器响应格式错误');
     }
@@ -119,28 +121,27 @@ class ApiClient {
     if (result.code !== 0) {
       // Auth errors — clear token and notify
       if (result.code === 1 || result.code === 4) {
-        localStorage.removeItem('auth-token');
-        localStorage.removeItem('auth-user');
+        clearAuth();
         window.dispatchEvent(new CustomEvent('auth-error', { detail: { code: result.code } }));
       }
       throw new ApiError(result.code, result.message || '未知错误');
     }
 
-    return toCamelCase(result.data) as T;
+    return toCamelCase<T>(result.data);
   }
 
   /** GET 请求 */
-  async get<T>(path: string, params?: Record<string, string>): Promise<T> {
+  get<T>(path: string, params?: Record<string, string>): Promise<T> {
     return this.request<T>('GET', path, undefined, params);
   }
 
   /** POST 请求 */
-  async post<T>(path: string, body?: unknown): Promise<T> {
+  post<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>('POST', path, body);
   }
 
   /** PUT 请求 */
-  async put<T>(path: string, body?: unknown): Promise<T> {
+  put<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>('PUT', path, body);
   }
 }
@@ -161,7 +162,7 @@ export async function getMyReports(): Promise<ReportListResponse> {
 }
 
 /** 获取登录日志（分页） */
-export async function fetchLoginLogs(
+export function fetchLoginLogs(
   page: number = 1,
   limit: number = 20,
 ): Promise<LogListResponse<LoginLog>> {
@@ -172,7 +173,7 @@ export async function fetchLoginLogs(
 }
 
 /** 获取操作日志（分页） */
-export async function fetchOperationLogs(
+export function fetchOperationLogs(
   page: number = 1,
   limit: number = 20,
 ): Promise<LogListResponse<OperationLog>> {

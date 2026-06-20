@@ -17,10 +17,7 @@ class AuthManager {
 
   constructor() {
     this.loadUser();
-    // Listen for auth errors from ApiClient (401 / token expired)
-    window.addEventListener('auth-error', () => {
-      this.handleAuthError();
-    });
+    window.addEventListener('auth-error', this.handleAuthError);
   }
 
   /** 从 localStorage 加载已保存的用户信息 */
@@ -35,12 +32,24 @@ class AuthManager {
     }
   }
 
+  /** 保存用户信息到 localStorage */
+  private saveUser(user: AuthUser, token: string): void {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    this.user = user;
+  }
+
+  /** 清除认证信息 */
+  private clearAuth(): void {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    this.user = null;
+  }
+
   /** 登录 */
   async login(req: LoginRequest): Promise<AuthUser> {
     const res = await apiClient.post<AuthResponse>('/auth/login', req);
-    localStorage.setItem(TOKEN_KEY, res.token);
-    localStorage.setItem(USER_KEY, JSON.stringify(res.user));
-    this.user = res.user;
+    this.saveUser(res.user, res.token);
     this.notifyListeners();
     return res.user;
   }
@@ -48,18 +57,14 @@ class AuthManager {
   /** 注册 */
   async register(req: RegisterRequest): Promise<AuthUser> {
     const res = await apiClient.post<AuthResponse>('/auth/register', req);
-    localStorage.setItem(TOKEN_KEY, res.token);
-    localStorage.setItem(USER_KEY, JSON.stringify(res.user));
-    this.user = res.user;
+    this.saveUser(res.user, res.token);
     this.notifyListeners();
     return res.user;
   }
 
   /** 登出 */
   logout(): void {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    this.user = null;
+    this.clearAuth();
     this.notifyListeners();
   }
 
@@ -92,10 +97,10 @@ class AuthManager {
   }
 
   /** 处理 API 层的认证错误 — 自动登出 */
-  private handleAuthError(): void {
-    this.user = null;
+  private handleAuthError = (): void => {
+    this.clearAuth();
     this.notifyListeners();
-  }
+  };
 }
 
 /** 认证管理器单例 */

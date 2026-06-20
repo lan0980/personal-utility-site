@@ -21,7 +21,8 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import LabelIcon from '@mui/icons-material/Label';
-import { Tag, TAG_COLORS } from '../types';
+import { Tag, TAG_COLORS, getVisibleTags } from '../types';
+import { createTag } from '../utils/tag';
 
 interface TagManagerProps {
   tags: Tag[];
@@ -29,10 +30,6 @@ interface TagManagerProps {
   scope: 'calendar' | 'links';
 }
 
-/**
- * 标签管理组件：创建、编辑、删除标签
- * 使用软删除，保留 deleted 标签以支持同步
- */
 const TagManager: React.FC<TagManagerProps> = ({ tags, onTagsChange, scope }) => {
   const [open, setOpen] = useState(false);
   const [editTagId, setEditTagId] = useState<string | null>(null);
@@ -41,8 +38,7 @@ const TagManager: React.FC<TagManagerProps> = ({ tags, onTagsChange, scope }) =>
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // Only show non-deleted tags
-  const visibleTags = tags.filter((t) => !t.deleted);
+  const visibleTags = getVisibleTags(tags);
 
   const handleOpen = () => {
     setOpen(true);
@@ -79,23 +75,13 @@ const TagManager: React.FC<TagManagerProps> = ({ tags, onTagsChange, scope }) =>
         ),
       );
     } else {
-      const now = new Date().toISOString();
-      const newTag: Tag = {
-        id: crypto.randomUUID(),
-        name: trimmed,
-        color: tagColor,
-        scope,
-        createdAt: now,
-        updatedAt: now,
-        deleted: false,
-      };
+      const newTag = createTag(trimmed, scope, tagColor);
       onTagsChange([...tags, newTag]);
     }
     resetForm();
   };
 
   const handleDelete = (tagId: string) => {
-    // Soft delete — keep the tag in the array for sync, just mark as deleted
     onTagsChange(
       tags.map((t) =>
         t.id === tagId ? { ...t, deleted: true, updatedAt: new Date().toISOString() } : t,
@@ -105,13 +91,7 @@ const TagManager: React.FC<TagManagerProps> = ({ tags, onTagsChange, scope }) =>
 
   return (
     <>
-      <Button
-        variant="outlined"
-        size="small"
-        startIcon={<LabelIcon />}
-        onClick={handleOpen}
-        sx={{ borderRadius: 2 }}
-      >
+      <Button variant="outlined" size="small" startIcon={<LabelIcon />} onClick={handleOpen} sx={{ borderRadius: 2 }}>
         管理标签
       </Button>
 
@@ -133,18 +113,11 @@ const TagManager: React.FC<TagManagerProps> = ({ tags, onTagsChange, scope }) =>
               }}
               sx={{ flex: { xs: 'none', sm: 1 } }}
             />
-            <Button
-              variant="contained"
-              onClick={handleSave}
-              disabled={!tagName.trim()}
-              startIcon={editTagId ? <EditIcon /> : <AddIcon />}
-            >
+            <Button variant="contained" onClick={handleSave} disabled={!tagName.trim()} startIcon={editTagId ? <EditIcon /> : <AddIcon />}>
               {editTagId ? '更新' : '添加'}
             </Button>
             {editTagId && (
-              <Button variant="outlined" onClick={resetForm}>
-                取消
-              </Button>
+              <Button variant="outlined" onClick={resetForm}>取消</Button>
             )}
           </Box>
 
@@ -167,9 +140,7 @@ const TagManager: React.FC<TagManagerProps> = ({ tags, onTagsChange, scope }) =>
                     border: tagColor === color ? '3px solid' : '2px solid',
                     borderColor: tagColor === color ? 'text.primary' : 'transparent',
                     transition: 'all 0.2s ease',
-                    '&:hover': {
-                      transform: 'scale(1.15)',
-                    },
+                    '&:hover': { transform: 'scale(1.15)' },
                   }}
                 />
               ))}
@@ -184,38 +155,14 @@ const TagManager: React.FC<TagManagerProps> = ({ tags, onTagsChange, scope }) =>
           ) : (
             <List disablePadding>
               {visibleTags.map((tag) => (
-                <ListItem
-                  key={tag.id}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 0.5,
-                    bgcolor: 'background.default',
-                  }}
-                >
-                  <Chip
-                    label={tag.name}
-                    size="small"
-                    sx={{
-                      bgcolor: tag.color,
-                      color: '#fff',
-                      fontWeight: 600,
-                      mr: 1,
-                    }}
-                  />
-                  <ListItemText
-                    primary={tag.name}
-                    primaryTypographyProps={{ variant: 'body2' }}
-                  />
+                <ListItem key={tag.id} sx={{ borderRadius: 2, mb: 0.5, bgcolor: 'background.default' }}>
+                  <Chip label={tag.name} size="small" sx={{ bgcolor: tag.color, color: '#fff', fontWeight: 600, mr: 1 }} />
+                  <ListItemText primary={tag.name} primaryTypographyProps={{ variant: 'body2' }} />
                   <ListItemSecondaryAction>
                     <IconButton size="small" onClick={() => handleEdit(tag)} sx={{ padding: { xs: '12px', sm: '3px' } }}>
                       <EditIcon fontSize="small" />
                     </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDelete(tag.id)}
-                      color="error"
-                      sx={{ padding: { xs: '12px', sm: '3px' } }}
-                    >
+                    <IconButton size="small" onClick={() => handleDelete(tag.id)} color="error" sx={{ padding: { xs: '12px', sm: '3px' } }}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </ListItemSecondaryAction>

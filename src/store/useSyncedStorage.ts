@@ -8,10 +8,10 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { syncEngine } from '../services/sync';
-import type { PendingChange } from '../types';
+import type { PendingChange, Tag } from '../types';
 
 /** localStorage key → entity name 映射 */
-function getEntityFromKey(key: string): string | null {
+function getEntityFromKey(key: string): PendingChange['entity'] | null {
   switch (key) {
     case 'calendar-todos':
       return 'todos';
@@ -38,7 +38,7 @@ export function useSyncedStorage<T>(
 ): [T, (value: T | ((prev: T) => T)) => void] {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
-      const item = window.localStorage.getItem(key);
+      const item = localStorage.getItem(key);
       return item ? (JSON.parse(item) as T) : initialValue;
     } catch (error) {
       console.warn(`读取 localStorage key "${key}" 失败:`, error);
@@ -48,12 +48,11 @@ export function useSyncedStorage<T>(
 
   const setValue = useCallback(
     (value: T | ((prev: T) => T)) => {
-      try {
-        setStoredValue((prev) => {
-          const valueToStore = value instanceof Function ? value(prev) : value;
-          window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      setStoredValue((prev) => {
+        const valueToStore = value instanceof Function ? value(prev) : value;
+        try {
+          localStorage.setItem(key, JSON.stringify(valueToStore));
 
-          // 将变更加入同步引擎队列
           const entity = getEntityFromKey(key);
           if (entity) {
             const change: PendingChange = {
@@ -65,12 +64,11 @@ export function useSyncedStorage<T>(
             };
             syncEngine.enqueueChange(change);
           }
-
-          return valueToStore;
-        });
-      } catch (error) {
-        console.warn(`写入 localStorage key "${key}" 失败:`, error);
-      }
+        } catch (error) {
+          console.warn(`写入 localStorage key "${key}" 失败:`, error);
+        }
+        return valueToStore;
+      });
     },
     [key],
   );
@@ -78,12 +76,12 @@ export function useSyncedStorage<T>(
   // 监听同步引擎更新 localStorage 的事件，刷新组件状态
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail && detail.key === key) {
+      const detail = (e as CustomEvent<{ key: string }>).detail;
+      if (detail?.key === key) {
         try {
-          const item = window.localStorage.getItem(key);
+          const item = localStorage.getItem(key);
           if (item) {
-            setStoredValue(JSON.parse(item));
+            setStoredValue(JSON.parse(item) as T);
           }
         } catch (error) {
           console.warn(`同步更新 localStorage key "${key}" 失败:`, error);
